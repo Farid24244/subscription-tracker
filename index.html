@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ردیاب اشتراک</title>
+<style>
+  :root{--bg:#f6f7fb;--card:#fff;--text:#1b1f2a;--muted:#6b7280;--accent:#4f46e5;--warn:#dc2626;--ok:#16a34a;--line:#e5e7eb}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b22;--text:#eef0f5;--muted:#9aa3b2;--line:#2a2f3a}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;background:var(--bg);color:var(--text);padding:16px;padding-bottom:90px;max-width:520px;margin-inline:auto}
+  h1{font-size:20px;margin:4px 0 14px}
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .box small{color:var(--muted);display:block;margin-bottom:6px;font-size:12px}
+  .box b{font-size:20px}
+  .item{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+  .item .name{font-weight:700}
+  .item .meta{color:var(--muted);font-size:12px;margin-top:4px}
+  .badge{font-size:11px;padding:3px 8px;border-radius:99px;background:var(--line);color:var(--text)}
+  .soon{background:var(--warn);color:#fff}
+  .del{border:0;background:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px}
+  .fab{position:fixed;bottom:20px;inset-inline:0;margin-inline:auto;width:calc(100% - 32px);max-width:488px;background:var(--accent);color:#fff;border:0;border-radius:14px;padding:14px;font-size:16px;font-weight:700;cursor:pointer}
+  dialog{border:0;border-radius:16px;background:var(--card);color:var(--text);width:min(92vw,420px);padding:18px}
+  dialog::backdrop{background:rgba(0,0,0,.45)}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  input,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:15px}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  .actions{display:flex;gap:8px;margin-top:16px}
+  .actions button{flex:1;padding:12px;border-radius:10px;border:0;font-size:15px;font-weight:700;cursor:pointer}
+  .save{background:var(--accent);color:#fff}
+  .cancel{background:var(--line);color:var(--text)}
+  .pro{background:linear-gradient(135deg,#4f46e5,#9333ea);color:#fff;border-radius:14px;padding:14px;margin-bottom:12px;display:none}
+  .pro b{display:block;margin-bottom:4px}
+</style>
+</head>
+<body>
+<h1>💳 ردیاب اشتراک</h1>
+
+<div class="summary">
+  <div class="box"><small>هزینه ماهانه</small><b id="monthly">0</b></div>
+  <div class="box"><small>هزینه سالانه</small><b id="yearly">0</b></div>
+</div>
+
+<div class="pro" id="proBanner">
+  <b>به حداکثر نسخه رایگان رسیدی</b>
+  برای اشتراک‌های نامحدود و یادآوری تمدید، نسخه Pro رو فعال کن.
+</div>
+
+<div id="list"></div>
+
+<button class="fab" id="addBtn">+ افزودن اشتراک</button>
+
+<dialog id="dlg">
+  <form method="dialog" id="form">
+    <b>اشتراک جدید</b>
+    <label>نام سرویس</label>
+    <input id="fName" required placeholder="مثلاً Spotify">
+    <div class="row">
+      <div><label>قیمت</label><input id="fPrice" type="number" step="any" min="0" required></div>
+      <div><label>واحد</label>
+        <select id="fCur"><option>USD</option><option>تومان</option><option>EUR</option></select></div>
+    </div>
+    <div class="row">
+      <div><label>دوره پرداخت</label>
+        <select id="fCycle"><option value="m">ماهانه</option><option value="y">سالانه</option></select></div>
+      <div></div>
+    </div>
+    <label>تاریخ تمدید بعدی (شمسی)</label>
+    <div class="row">
+      <input id="fJy" type="number" min="1300" max="1500" required placeholder="سال">
+      <select id="fJm"></select>
+      <input id="fJd" type="number" min="1" max="31" required placeholder="روز">
+    </div>
+    <div class="actions">
+      <button type="button" class="cancel" id="cancel">انصراف</button>
+      <button type="submit" class="save">ذخیره</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const FREE_LIMIT = 5;          // حداکثر اشتراک در نسخه رایگان
+const KEY = "subs_v1";
+const fmt = new Intl.NumberFormat("fa-IR", {maximumFractionDigits: 2});
+
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY)) || []; }catch(e){ return []; } }
+function save(a){ try{ localStorage.setItem(KEY, JSON.stringify(a)); }catch(e){} }
+
+// JALALI-START
+function g2j(gy, gm, gd){
+  const gdm = [0,31,59,90,120,151,181,212,243,273,304,334];
+  const gy2 = gm > 2 ? gy + 1 : gy;
+  let days = 355666 + 365*gy + Math.trunc((gy2+3)/4) - Math.trunc((gy2+99)/100) + Math.trunc((gy2+399)/400) + gd + gdm[gm-1];
+  let jy = -1595 + 33*Math.trunc(days/12053); days %= 12053;
+  jy += 4*Math.trunc(days/1461); days %= 1461;
+  if (days > 365) { jy += Math.trunc((days-1)/365); days = (days-1) % 365; }
+  const jm = days < 186 ? 1 + Math.trunc(days/31) : 7 + Math.trunc((days-186)/30);
+  const jd = 1 + (days < 186 ? days % 31 : (days-186) % 30);
+  return [jy, jm, jd];
+}
+function j2g(jy, jm, jd){
+  jy += 1595;
+  let days = -355668 + 365*jy + Math.trunc(jy/33)*8 + Math.trunc((jy%33+3)/4) + jd + (jm < 7 ? (jm-1)*31 : (jm-7)*30 + 186);
+  let gy = 400*Math.trunc(days/146097); days %= 146097;
+  if (days > 36524) { gy += 100*Math.trunc(--days/36524); days %= 36524; if (days >= 365) days++; }
+  gy += 4*Math.trunc(days/1461); days %= 1461;
+  if (days > 365) { gy += Math.trunc((days-1)/365); days = (days-1) % 365; }
+  let gd = days + 1;
+  const leap = (gy%4===0 && gy%100!==0) || gy%400===0;
+  const sal = [0,31,leap?29:28,31,30,31,30,31,31,30,31,30,31];
+  let gm = 0;
+  while (gm < 13 && gd > sal[gm]) { gd -= sal[gm]; gm++; }
+  return [gy, gm, gd];
+}
+function jMonthDays(jy, jm){
+  if (jm <= 6) return 31;
+  if (jm <= 11) return 30;
+  // اسفند: ۲۹ یا ۳۰ روز؛ با رفت‌وبرگشت تاریخ بررسی می‌شود
+  const g = j2g(jy, 12, 30), back = g2j(g[0], g[1], g[2]);
+  return (back[0] === jy && back[1] === 12 && back[2] === 30) ? 30 : 29;
+}
+const J_MONTHS = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+const faNum = new Intl.NumberFormat("fa-IR", {useGrouping:false});
+function isoToJalaliText(d){
+  const j = g2j(d.getFullYear(), d.getMonth()+1, d.getDate());
+  return faNum.format(j[2]) + " " + J_MONTHS[j[1]-1] + " " + faNum.format(j[0]);
+}
+// JALALI-END
+
+let subs = load();
+
+// تاریخ تمدید بعدی: اگر گذشته باشد، به دوره بعد منتقل می‌شود
+function nextDate(s){
+  const d = new Date(s.date + "T00:00:00");
+  const now = new Date(); now.setHours(0,0,0,0);
+  while (d < now) {
+    if (s.cycle === "m") d.setMonth(d.getMonth() + 1);
+    else d.setFullYear(d.getFullYear() + 1);
+  }
+  return d;
+}
+function daysUntil(d){
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((d - now) / 86400000);
+}
+function toMonthly(s){ return s.cycle === "m" ? s.price : s.price / 12; }
+
+function render(){
+  const list = document.getElementById("list");
+  const totals = {};
+  subs.forEach(s => { totals[s.cur] = (totals[s.cur] || 0) + toMonthly(s); });
+
+  const showTotals = (mult) => {
+    const parts = Object.entries(totals).map(([c,v]) => fmt.format(v*mult) + " " + c);
+    return parts.length ? parts.join(" + ") : "0";
+  };
+  document.getElementById("monthly").textContent = showTotals(1);
+  document.getElementById("yearly").textContent = showTotals(12);
+
+  const sorted = subs.map(s => ({s, d: nextDate(s)})).sort((a,b) => a.d - b.d);
+  list.innerHTML = sorted.length ? "" : '<div class="empty">هنوز اشتراکی اضافه نکردی.<br>با دکمه پایین شروع کن.</div>';
+
+  sorted.forEach(({s, d}) => {
+    const left = daysUntil(d);
+    const el = document.createElement("div");
+    el.className = "item";
+    const when = left === 0 ? "امروز" : left + " روز دیگر";
+    el.innerHTML = `
+      <div>
+        <div class="name"></div>
+        <div class="meta"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span class="badge ${left <= 3 ? "soon" : ""}">${when}</span>
+        <button class="del" title="حذف">✕</button>
+      </div>`;
+    el.querySelector(".name").textContent = s.name;
+    el.querySelector(".meta").textContent =
+      fmt.format(s.price) + " " + s.cur + " / " + (s.cycle === "m" ? "ماه" : "سال") +
+      " · تمدید: " + isoToJalaliText(d);
+    el.querySelector(".del").onclick = () => {
+      if (confirm("«" + s.name + "» حذف شود؟")) {
+        subs = subs.filter(x => x.id !== s.id); save(subs); render();
+      }
+    };
+    list.appendChild(el);
+  });
+
+  document.getElementById("proBanner").style.display = subs.length >= FREE_LIMIT ? "block" : "none";
+}
+
+const dlg = document.getElementById("dlg");
+document.getElementById("addBtn").onclick = () => {
+  if (subs.length >= FREE_LIMIT) { document.getElementById("proBanner").style.display = "block"; window.scrollTo(0,0); return; }
+  document.getElementById("form").reset();
+  const t = new Date(), j = g2j(t.getFullYear(), t.getMonth()+1, t.getDate());
+  document.getElementById("fJy").value = j[0];
+  document.getElementById("fJm").value = j[1];
+  document.getElementById("fJd").value = j[2];
+  dlg.showModal();
+};
+const fJm = document.getElementById("fJm");
+J_MONTHS.forEach((m, i) => { const o = document.createElement("option"); o.value = i+1; o.textContent = m; fJm.appendChild(o); });
+document.getElementById("cancel").onclick = () => dlg.close();
+document.getElementById("form").addEventListener("submit", (e) => {
+  const jy = parseInt(document.getElementById("fJy").value, 10);
+  const jm = parseInt(document.getElementById("fJm").value, 10);
+  const jd = parseInt(document.getElementById("fJd").value, 10);
+  if (!(jy >= 1300 && jy <= 1500) || jd < 1 || jd > jMonthDays(jy, jm)) {
+    e.preventDefault();
+    alert("تاریخ وارد شده درست نیست.");
+    return;
+  }
+  const g = j2g(jy, jm, jd);
+  const iso = g[0] + "-" + String(g[1]).padStart(2,"0") + "-" + String(g[2]).padStart(2,"0");
+  subs.push({
+    id: Date.now(),
+    name: document.getElementById("fName").value.trim(),
+    price: parseFloat(document.getElementById("fPrice").value),
+    cur: document.getElementById("fCur").value,
+    cycle: document.getElementById("fCycle").value,
+    date: iso
+  });
+  save(subs); render();
+});
+
+render();
+</script>
+</body>
+</html>
