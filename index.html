@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ردیاب اشتراک</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4f46e5">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root{--bg:#f6f7fb;--card:#fff;--text:#1b1f2a;--muted:#6b7280;--accent:#4f46e5;--warn:#dc2626;--ok:#16a34a;--line:#e5e7eb}
   @media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#181b22;--text:#eef0f5;--muted:#9aa3b2;--line:#2a2f3a}}
@@ -167,7 +171,7 @@ function render(){
     const left = daysUntil(d);
     const el = document.createElement("div");
     el.className = "item";
-    const when = left === 0 ? "امروز" : left + " روز دیگر";
+    const when = left === 0 ? "امروز" : faNum.format(left) + " روز دیگر";
     el.innerHTML = `
       <div>
         <div class="name"></div>
@@ -228,6 +232,10 @@ document.getElementById("form").addEventListener("submit", (e) => {
 });
 
 render();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
 </script>
 </body>
 </html>
